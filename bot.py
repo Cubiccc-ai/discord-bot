@@ -331,3 +331,5 @@ async def help(ctx: commands.Context):
 # -------------------- RUN BOT --------------------
 
 bot.run(os.getenv("DISCORD_TOKEN"))
+
+# Deployment retry

@@ -328,8 +328,28 @@ async def help(ctx: commands.Context):
 
     await ctx.send(embed=embed)
 
+# -------------------- KEEP RENDER ALIVE --------------------
+from threading import Thread
+from flask import Flask
+
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Bot is alive!"
+
+def run():
+    app.run(host='0.0.0.0', port=8080)
+
+Thread(target=run).start()
+
 # -------------------- RUN BOT --------------------
 
-bot.run(os.getenv("DISCORD_TOKEN"))
+import sys
 
-# Deployment retry
+token = os.getenv("DISCORD_TOKEN")
+if not token:
+    print("❌ DISCORD_TOKEN not found in environment variables.")
+    sys.exit()
+
+bot.run(token)

@@ -242,7 +242,58 @@ async def warn_error(ctx, error):
         await ctx.send("❌ You don't have permission to warn users.")
     else:
         await ctx.send(f"⚠️ Error: {str(error)}")
-    
+        
+# -------------------- MUTUAL SERVERS --------------------
+
+@bot.hybrid_command(description="Check how many mutual servers you share with a user ID.")
+@app_commands.describe(user_id="The Discord ID of the user")
+async def mutual(ctx: commands.Context, user_id: str):
+    # Validate ID
+    if not user_id.isdigit():
+        await ctx.send("❌ Please enter a valid user ID.")
+        return
+
+    uid = int(user_id)
+    mutual_guilds = []
+
+    # Loop through guilds the bot is in
+    for guild in bot.guilds:
+        # Try cached member first
+        member = guild.get_member(uid)
+        if member:
+            mutual_guilds.append(guild.name)
+            continue
+
+        # Fallback: fetch member (if bot has perms)
+        try:
+            await guild.fetch_member(uid)
+            mutual_guilds.append(guild.name)
+        except discord.NotFound:
+            pass
+        except discord.Forbidden:
+            pass
+        except discord.HTTPException:
+            pass
+
+    count = len(mutual_guilds)
+
+    if count == 0:
+        await ctx.send(f"ℹ️ No mutual servers found with `{user_id}`.")
+        return
+
+    # Format output
+    if count > 10:
+        preview = ', '.join(mutual_guilds[:10])
+        more = count - 10
+        await ctx.send(
+            f"🤝 **Mutual Servers:** {count}\n"
+            f"🔹 **First 10:** {preview}... (+{more} more)"
+        )
+    else:
+        await ctx.send(
+            f"🤝 **Mutual Servers ({count}):** {', '.join(mutual_guilds)}"
+        )
+   
 # --------------------- UTILITY ---------------------
 
 # -------------------- TIME --------------------

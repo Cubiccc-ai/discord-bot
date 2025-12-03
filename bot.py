@@ -11,24 +11,60 @@ intents.message_content = True
 intents.members = True
 
 bot = commands.Bot(command_prefix="-", intents=intents, help_command=None)
-GUILD_ID = int(os.getenv("GUILD_ID"))  # Make sure GUILD_ID exists in your .env file
+# --- safe GUILD_ID parsing + diagnostics (paste right after bot = ...) ---
+guild_id_raw = os.getenv("GUILD_ID")
+if guild_id_raw:
+    try:
+        GUILD_ID = int(guild_id_raw)
+    except ValueError:
+        print(f"❌ GUILD_ID must be numeric. Got: {guild_id_raw!r}")
+        GUILD_ID = None
+else:
+    print("⚠️ GUILD_ID not set. Guild-specific sync will be skipped.")
+    GUILD_ID = None
 
 @bot.event
 async def on_ready():
-    print(f"✅ Logged in as {bot.user}")
+    print(f"✅ Logged in as {bot.user} (id={getattr(bot.user,'id',None)})")
+
+    # list prefix commands
     try:
-        guild_obj = discord.Object(id=GUILD_ID)
-        synced = await bot.tree.sync(guild=guild_obj)
-        print(f"✅ Synced {len(synced)} slash command(s) to guild {GUILD_ID}.")
+        print("Prefix commands registered:", [c.name for c in bot.commands])
     except Exception as e:
-        print(f"❌ Failed to sync guild slash commands: {e}")
+        print("Error listing prefix commands:", e)
+
+    # list app (slash) commands in the tree (local)
+    try:
+        print("App commands in tree (local):", [c.name for c in bot.tree.walk_commands()])
+    except Exception as e:
+        print("Error listing app commands:", e)
+
+    # show guilds the bot is in
+    try:
+        print("Guilds the bot is in:")
+        for g in bot.guilds:
+            print(f" - {g.name} (id={g.id})")
+    except Exception as e:
+        print("Error enumerating guilds:", e)
+
+    # sync commands (guild-fast if GUILD_ID provided, else global)
+    try:
+        if GUILD_ID:
+            guild_obj = discord.Object(id=GUILD_ID)
+            synced = await bot.tree.sync(guild=guild_obj)
+            print(f"✅ Synced {len(synced)} slash command(s) to guild {GUILD_ID}.")
+        else:
+            synced = await bot.tree.sync()
+            print(f"✅ Synced {len(synced)} slash command(s) globally.")
+    except Exception as e:
+        print("❌ Sync error:", repr(e))
+# --- end block ---
 
 # -------------------- PING --------------------
 
 @bot.tree.command(
     name="ping",
     description="Check if the bot is online (slash version)",
-    guild=discord.Object(id=GUILD_ID)
 )
 async def slash_ping(interaction: discord.Interaction):
     await interaction.response.send_message("🏓 Pong!")

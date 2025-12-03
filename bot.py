@@ -11,25 +11,27 @@ intents.message_content = True
 intents.members = True
 
 bot = commands.Bot(command_prefix="-", intents=intents, help_command=None)
+GUILD_ID = int(os.getenv("GUILD_ID"))  # Make sure GUILD_ID exists in your .env file
 
 @bot.event
 async def on_ready():
     print(f"✅ Logged in as {bot.user}")
     try:
-        synced = await bot.tree.sync()  # Global sync
-        print(f"✅ Synced {len(synced)} slash command(s) globally.")
+        guild_obj = discord.Object(id=GUILD_ID)
+        synced = await bot.tree.sync(guild=guild_obj)
+        print(f"✅ Synced {len(synced)} slash command(s) to guild {GUILD_ID}.")
     except Exception as e:
-        print(f"❌ Failed to sync global slash commands: {e}")
+        print(f"❌ Failed to sync guild slash commands: {e}")
 
 # -------------------- PING --------------------
 
-@bot.command()
-async def ping(ctx):
-    await ctx.send("🏓 Pong!")
-
-@bot.tree.command(name="ping", description="Check if the bot is online (slash version)")
+@bot.tree.command(
+    name="ping",
+    description="Check if the bot is online (slash version)",
+    guild=discord.Object(id=GUILD_ID)
+)
 async def slash_ping(interaction: discord.Interaction):
-    await interaction.response.send_message("🏓 Pong!", ephemeral=False)
+    await interaction.response.send_message("🏓 Pong!")
 
 # -------------------- KICK --------------------
 

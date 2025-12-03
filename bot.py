@@ -24,14 +24,15 @@ async def on_ready():
         print(f"❌ Failed to sync guild slash commands: {e}")
 
 # -------------------- PING --------------------
-
-@bot.tree.command(
-    name="ping",
-    description="Check if the bot is online (slash version)",
-    guild=discord.Object(id=GUILD_ID)
-)
+# slash ping (for /ping)
+@bot.tree.command(name="ping", description="Check if the bot is online (slash version)")
 async def slash_ping(interaction: discord.Interaction):
     await interaction.response.send_message("🏓 Pong!")
+
+# prefix ping (for -ping)
+@bot.command(name="ping")
+async def ping(ctx):
+    await ctx.send("🏓 Pong!")
 
 # -------------------- KICK --------------------
 

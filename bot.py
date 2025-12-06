@@ -106,6 +106,7 @@ async def main():
     print(">> Starting cog loader (root files):", os.listdir("."))
 
     import traceback
+    import asyncio
 
     print(">> debug: server-side cogs path exists?", os.path.exists("cogs"))
     try:
@@ -114,7 +115,6 @@ async def main():
         cogs_listing = f"ERROR listing cogs: {e!r}"
     print(">> debug: cogs folder listing (server):", cogs_listing)
 
-    # load all cogs from the cogs/ folder (with full traceback on error)
     cogs_path = "cogs"
     if os.path.exists(cogs_path):
         for filename in sorted(os.listdir(cogs_path)):
@@ -123,8 +123,14 @@ async def main():
                 module_name = f"cogs.{filename[:-3]}"
                 print(f">> attempting to load {module_name}")
                 try:
-                    await bot.load_extension(module_name)
+                    # guard against blocking imports/setup by timing out
+                    await asyncio.wait_for(bot.load_extension(module_name), timeout=12.0)
                     print(f"✅ Loaded cog: {module_name}")
+                except asyncio.TimeoutError:
+                    print(f"⏱️ Timeout while loading {module_name} (took >12s).")
+                    print("---- FULL TRACEBACK ----")
+                    print(traceback.format_exc())
+                    print("---- end traceback ----")
                 except Exception as e:
                     print(f"❌ Failed to load {module_name}: {repr(e)}")
                     print("---- FULL TRACEBACK ----")

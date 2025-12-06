@@ -1,5 +1,5 @@
-# cogs/moderation.py
 from discord.ext import commands
+from discord import app_commands
 import discord
 import asyncio
 
@@ -7,7 +7,7 @@ class Moderation(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    # helper: safe reply (ephemeral only when interaction available)
+    # helper: safe reply
     async def safe_reply(self, ctx, content, *, ephemeral=False):
         try:
             interaction = getattr(ctx, "interaction", None)
@@ -24,14 +24,15 @@ class Moderation(commands.Cog):
             except:
                 pass
 
+    # KICK
     @commands.hybrid_command(name="kick", description="Kick a member from the server.")
     @commands.has_permissions(kick_members=True)
-    @commands.describe(member="The member to kick", reason="Reason for the kick")
+    @app_commands.describe(member="The member to kick", reason="Reason for the kick")
     async def kick(self, ctx: commands.Context, member: discord.Member, reason: str = "No reason provided"):
         try:
             await member.send(f"👢 You were kicked from **{ctx.guild.name}**.\n**Reason:** {reason}")
         except discord.Forbidden:
-            await self.safe_reply(ctx, "⚠️ Couldn't DM the user (they probably have DMs off).", ephemeral=False)
+            await self.safe_reply(ctx, "⚠️ Couldn't DM the user (they probably have DMs off).")
         except discord.HTTPException:
             pass
 
@@ -52,9 +53,10 @@ class Moderation(commands.Cog):
         else:
             await self.safe_reply(ctx, f"❌ An error occurred: {error}")
 
+    # BAN
     @commands.hybrid_command(name="ban", description="Ban a member from the server.")
     @commands.has_permissions(ban_members=True)
-    @commands.describe(user="The member to ban", reason="Reason for the ban")
+    @app_commands.describe(user="The member to ban", reason="Reason for the ban")
     async def ban(self, ctx: commands.Context, user: str, *, reason: str = "No reason provided"):
         member = None
         try:
@@ -91,9 +93,10 @@ class Moderation(commands.Cog):
         else:
             await self.safe_reply(ctx, f"❌ An error occurred: {error}")
 
-    @commands.hybrid_command(name="unban", description="Unban a member by name#1234 or ID.")
+    # UNBAN
+    @commands.hybrid_command(name="unban", description="Unban a member by tag or ID.")
     @commands.has_permissions(ban_members=True)
-    @commands.describe(user_input="Name#1234 or user ID of the banned user")
+    @app_commands.describe(user_input="Name#1234 or user ID of the banned user")
     async def unban(self, ctx: commands.Context, *, user_input: str):
         banned_users = [entry async for entry in ctx.guild.bans()]
 
@@ -115,7 +118,7 @@ class Moderation(commands.Cog):
                 try:
                     await user.send(f"✅ You have been unbanned from **{ctx.guild.name}**.")
                 except:
-                    await self.safe_reply(ctx, f"⚠️ Couldn't DM {user}.", ephemeral=False)
+                    await self.safe_reply(ctx, f"⚠️ Couldn't DM {user}.")
                 await ctx.guild.unban(user)
                 await self.safe_reply(ctx, f"✅ Unbanned {user.mention}")
                 return
@@ -131,14 +134,15 @@ class Moderation(commands.Cog):
         else:
             await self.safe_reply(ctx, f"❌ An error occurred: {error}")
 
+    # MUTE
     @commands.hybrid_command(name="mute", description="Mute a user, optionally for a duration (seconds).")
     @commands.has_permissions(manage_roles=True)
-    @commands.describe(member="The member to mute", duration="Duration in seconds", reason="Reason for muting")
+    @app_commands.describe(member="The member to mute", duration="Duration in seconds", reason="Reason for muting")
     async def mute(self, ctx: commands.Context, member: discord.Member, duration: int = None, *, reason: str = "No reason provided"):
         muted_role = discord.utils.get(ctx.guild.roles, name="Muted")
 
         if not muted_role:
-            await self.safe_reply(ctx, "❌ 'Muted' role not found. Please create one with no Send Messages/Speak permissions.")
+            await self.safe_reply(ctx, "❌ 'Muted' role not found.")
             return
 
         await member.add_roles(muted_role, reason=reason)
@@ -146,7 +150,7 @@ class Moderation(commands.Cog):
         try:
             await member.send(f"🔇 You have been muted in **{ctx.guild.name}**.\nReason: `{reason}`")
         except:
-            await self.safe_reply(ctx, "⚠️ Couldn't DM the muted user.", ephemeral=False)
+            await self.safe_reply(ctx, "⚠️ Couldn't DM the muted user.")
 
         await self.safe_reply(ctx, f"🔇 Muted {member.mention} | Reason: `{reason}`")
 
@@ -164,13 +168,14 @@ class Moderation(commands.Cog):
         if isinstance(error, commands.MissingRequiredArgument):
             await self.safe_reply(ctx, "❌ Usage: `-mute @user [duration] [reason]`")
         elif isinstance(error, commands.MissingPermissions):
-            await self.safe_reply(ctx, "❌ You don't have permission to use this command.")
+            await self.safe_reply(ctx, "❌ You don't have permission.")
         else:
             await self.safe_reply(ctx, f"❌ An error occurred: {error}")
 
+    # UNMUTE
     @commands.hybrid_command(name="unmute", description="Unmute a muted member.")
     @commands.has_permissions(manage_roles=True)
-    @commands.describe(member="The member to unmute")
+    @app_commands.describe(member="The member to unmute")
     async def unmute(self, ctx: commands.Context, member: discord.Member):
         muted_role = discord.utils.get(ctx.guild.roles, name="Muted")
 
@@ -187,7 +192,7 @@ class Moderation(commands.Cog):
         try:
             await member.send(f"🔊 You have been unmuted in **{ctx.guild.name}**.")
         except:
-            await self.safe_reply(ctx, "⚠️ Couldn't DM the user.", ephemeral=False)
+            await self.safe_reply(ctx, "⚠️ Couldn't DM the user.")
 
         await self.safe_reply(ctx, f"🔊 {member.mention} has been unmuted.")
 
@@ -196,18 +201,19 @@ class Moderation(commands.Cog):
         if isinstance(error, commands.MissingRequiredArgument):
             await self.safe_reply(ctx, "❌ Usage: `-unmute @user`")
         elif isinstance(error, commands.MissingPermissions):
-            await self.safe_reply(ctx, "❌ You don't have permission to use this command.")
+            await self.safe_reply(ctx, "❌ You don't have permission.")
         else:
             await self.safe_reply(ctx, f"❌ An error occurred: {error}")
 
-    @commands.hybrid_command(name="warn", description="Warn a user (with DM).")
+    # WARN
+    @commands.hybrid_command(name="warn", description="Warn a user.")
     @commands.has_permissions(manage_messages=True)
-    @commands.describe(member="The user to warn", reason="The reason for the warning")
+    @app_commands.describe(member="The user to warn", reason="The reason for the warning")
     async def warn(self, ctx: commands.Context, member: discord.Member, *, reason: str = "No reason provided"):
         try:
             await member.send(f"⚠️ You have been warned in **{ctx.guild.name}**.\nReason: `{reason}`")
         except (discord.Forbidden, discord.HTTPException):
-            await self.safe_reply(ctx, "⚠️ Couldn't DM the warned user.", ephemeral=False)
+            await self.safe_reply(ctx, "⚠️ Couldn't DM the warned user.")
 
         await self.safe_reply(ctx, f"⚠️ Warned {member.mention} | Reason: `{reason}`")
 
@@ -216,16 +222,17 @@ class Moderation(commands.Cog):
         if isinstance(error, commands.MissingRequiredArgument):
             await self.safe_reply(ctx, "❌ Usage: `-warn @user [reason]`")
         elif isinstance(error, commands.MissingPermissions):
-            await self.safe_reply(ctx, "❌ You don't have permission to warn users.")
+            await self.safe_reply(ctx, "❌ You don't have permission.")
         else:
             await self.safe_reply(ctx, f"⚠️ Error: {str(error)}")
 
-    @commands.hybrid_command(name="purge", description="Delete bulk messages from a channel.")
+    # PURGE
+    @commands.hybrid_command(name="purge", description="Delete bulk messages.")
     @commands.has_permissions(manage_messages=True)
-    @commands.describe(amount="Number of messages to delete (1–100)")
+    @app_commands.describe(amount="Number of messages to delete (1–100)")
     async def purge(self, ctx: commands.Context, amount: int):
         if amount < 1 or amount > 100:
-            await self.safe_reply(ctx, "⚠️ Please choose a number between 1 and 100.")
+            await self.safe_reply(ctx, "⚠️ Choose a number between 1–100.")
             return
 
         await ctx.channel.purge(limit=amount + 1)
@@ -233,11 +240,11 @@ class Moderation(commands.Cog):
         await confirm.delete(delay=3)
 
     @purge.error
-    async def purge_error(self, ctx, error):
+    async def purge_error(self, ctx, error):        
         if isinstance(error, commands.MissingRequiredArgument):
             await self.safe_reply(ctx, "❌ Usage: `-purge [1–100]`")
         elif isinstance(error, commands.MissingPermissions):
-            await self.safe_reply(ctx, "❌ You don't have permission to manage messages.")
+            await self.safe_reply(ctx, "❌ You don't have permission.")
         else:
             await self.safe_reply(ctx, f"⚠️ Error: {str(error)}")
 

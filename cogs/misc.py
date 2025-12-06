@@ -1,5 +1,5 @@
-# cogs/misc.py
 from discord.ext import commands
+from discord import app_commands
 import discord
 import pytz
 from datetime import datetime
@@ -37,7 +37,7 @@ class Misc(commands.Cog):
 
     # mutual (hybrid)
     @commands.hybrid_command(name="mutual", description="Check how many mutual servers you share with a user ID.")
-    @commands.describe(user_id="The Discord ID of the user")
+    @app_commands.describe(user_id="The Discord ID of the user")
     async def mutual(self, ctx, user_id: str):
         if not user_id.isdigit():
             await ctx.send("❌ Please enter a valid user ID.")
@@ -73,7 +73,7 @@ class Misc(commands.Cog):
 
     # time command
     @commands.hybrid_command(name="time", description="Get the current time in any location.")
-    @commands.describe(location="City or country name (e.g., Tokyo, Brazil, Chennai)")
+    @app_commands.describe(location="City or country name (e.g., Tokyo, Brazil, Chennai)")
     async def time(self, ctx, *, location: str = None):
         if not location:
             await ctx.send("❌ Usage: `-time <city>` — Example: `-time Tokyo`")
@@ -81,6 +81,7 @@ class Misc(commands.Cog):
 
         geolocator = Nominatim(user_agent="time-bot")
         tf = TimezoneFinder()
+
         try:
             loc = geolocator.geocode(location)
             if not loc:
@@ -95,6 +96,7 @@ class Misc(commands.Cog):
             tz = pytz.timezone(timezone_str)
             now = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
             await ctx.send(f"🕒 The current time in **{location.title()}** ({timezone_str}) is: `{now}`")
+
         except Exception as e:
             await ctx.send(f"⚠️ An error occurred: `{str(e)}`")
 

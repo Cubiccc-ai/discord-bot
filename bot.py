@@ -107,10 +107,18 @@ async def main():
 
     import traceback
 
+    print(">> debug: server-side cogs path exists?", os.path.exists("cogs"))
+    try:
+        cogs_listing = os.listdir("cogs")
+    except Exception as e:
+        cogs_listing = f"ERROR listing cogs: {e!r}"
+    print(">> debug: cogs folder listing (server):", cogs_listing)
+
     # load all cogs from the cogs/ folder (with full traceback on error)
     cogs_path = "cogs"
     if os.path.exists(cogs_path):
-        for filename in os.listdir(cogs_path):
+        for filename in sorted(os.listdir(cogs_path)):
+            print(f">> debug: found in cogs/: {filename}")
             if filename.endswith(".py") and filename != "__init__.py":
                 module_name = f"cogs.{filename[:-3]}"
                 print(f">> attempting to load {module_name}")

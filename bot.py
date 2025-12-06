@@ -103,30 +103,35 @@ Thread(target=run_flask).start()
 
 # -------------------- LOAD COGS & RUN --------------------
 async def main():
-    # print basic debug (optional)
     print(">> Starting cog loader (root files):", os.listdir("."))
 
-    # load all cogs from the cogs/ folder
+    import traceback
+
+    # load all cogs from the cogs/ folder (with full traceback on error)
     cogs_path = "cogs"
     if os.path.exists(cogs_path):
         for filename in os.listdir(cogs_path):
             if filename.endswith(".py") and filename != "__init__.py":
+                module_name = f"cogs.{filename[:-3]}"
+                print(f">> attempting to load {module_name}")
                 try:
-                    await bot.load_extension(f"cogs.{filename[:-3]}")
-                    print(f"✅ Loaded cog: cogs.{filename[:-3]}")
+                    await bot.load_extension(module_name)
+                    print(f"✅ Loaded cog: {module_name}")
                 except Exception as e:
-                    print(f"❌ Failed to load cogs.{filename[:-3]}:", repr(e))
+                    print(f"❌ Failed to load {module_name}: {repr(e)}")
+                    print("---- FULL TRACEBACK ----")
+                    print(traceback.format_exc())
+                    print("---- end traceback ----")
     else:
         print("❌ cogs folder not found!")
 
     DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
     if not DISCORD_TOKEN:
-        print("❌ DISCORD_TOKEN not found in environment variables.")
+        print("❌ DISCORD_TOKEN not found")
         raise SystemExit(1)
 
     async with bot:
         await bot.start(DISCORD_TOKEN)
-
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -103,45 +103,45 @@ Thread(target=run_flask).start()
 
 # -------------------- LOAD COGS & RUN --------------------
 async def main():
-    print(">> Starting cog loader (root files):", os.listdir("."))
+    print(">> Starting cog loader (root files):", os.listdir("."), flush=True)
 
     import traceback
     import asyncio
 
-    print(">> debug: server-side cogs path exists?", os.path.exists("cogs"))
+    print(">> debug: server-side cogs path exists?", os.path.exists("cogs"), flush=True)
     try:
         cogs_listing = os.listdir("cogs")
     except Exception as e:
         cogs_listing = f"ERROR listing cogs: {e!r}"
-    print(">> debug: cogs folder listing (server):", cogs_listing)
+    print(">> debug: cogs folder listing (server):", cogs_listing, flush=True)
 
     cogs_path = "cogs"
     if os.path.exists(cogs_path):
         for filename in sorted(os.listdir(cogs_path)):
-            print(f">> debug: found in cogs/: {filename}")
+            print(f">> debug: found in cogs/: {filename}", flush=True)
             if filename.endswith(".py") and filename != "__init__.py":
                 module_name = f"cogs.{filename[:-3]}"
-                print(f">> attempting to load {module_name}")
+                print(f">> attempting to load {module_name}", flush=True)
                 try:
-                    # guard against blocking imports/setup by timing out
+                    # use a timeout so a blocking import/setup can't hang the loader forever
                     await asyncio.wait_for(bot.load_extension(module_name), timeout=12.0)
-                    print(f"✅ Loaded cog: {module_name}")
+                    print(f"✅ Loaded cog: {module_name}", flush=True)
                 except asyncio.TimeoutError:
-                    print(f"⏱️ Timeout while loading {module_name} (took >12s).")
-                    print("---- FULL TRACEBACK ----")
-                    print(traceback.format_exc())
-                    print("---- end traceback ----")
+                    print(f"⏱️ Timeout while loading {module_name} (took >12s).", flush=True)
+                    print("---- FULL TRACEBACK ----", flush=True)
+                    print(traceback.format_exc(), flush=True)
+                    print("---- end traceback ----", flush=True)
                 except Exception as e:
-                    print(f"❌ Failed to load {module_name}: {repr(e)}")
-                    print("---- FULL TRACEBACK ----")
-                    print(traceback.format_exc())
-                    print("---- end traceback ----")
+                    print(f"❌ Failed to load {module_name}: {repr(e)}", flush=True)
+                    print("---- FULL TRACEBACK ----", flush=True)
+                    print(traceback.format_exc(), flush=True)
+                    print("---- end traceback ----", flush=True)
     else:
-        print("❌ cogs folder not found!")
+        print("❌ cogs folder not found!", flush=True)
 
     DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
     if not DISCORD_TOKEN:
-        print("❌ DISCORD_TOKEN not found")
+        print("❌ DISCORD_TOKEN not found", flush=True)
         raise SystemExit(1)
 
     async with bot:

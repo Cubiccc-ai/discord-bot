@@ -10,19 +10,13 @@ class Misc(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    # prefix ping (for -ping)
-    @commands.command(name="ping")
+    # hybrid ping (works as -ping and /ping)
+    @commands.hybrid_command(name="ping", description="Check if the bot is online (hybrid)")
     async def ping(self, ctx):
         await ctx.send("🏓 Pong!")
 
-    # slash ping (works as app command if synced)
-    @commands.hybrid_command(name="ping", description="Check if the bot is online (slash version)")
-    async def slash_ping(self, ctx):
-        # hybrid: ctx may be Interaction or Context
-        await ctx.send("🏓 Pong!")
-
     # help (hybrid so both prefix & slash can call it)
-    @commands.hybrid_command(description="Display a list of moderation commands.")
+    @commands.hybrid_command(name="help", description="Display a list of moderation commands.")
     async def help(self, ctx):
         prefix = ctx.prefix if hasattr(ctx, 'prefix') else '-'
         embed = discord.Embed(
@@ -42,7 +36,7 @@ class Misc(commands.Cog):
         await ctx.send(embed=embed)
 
     # mutual (hybrid)
-    @commands.hybrid_command(description="Check how many mutual servers you share with a user ID.")
+    @commands.hybrid_command(name="mutual", description="Check how many mutual servers you share with a user ID.")
     @commands.describe(user_id="The Discord ID of the user")
     async def mutual(self, ctx, user_id: str):
         if not user_id.isdigit():
@@ -78,7 +72,7 @@ class Misc(commands.Cog):
             await ctx.send(f"🤝 **Mutual Servers ({count}):** {', '.join(mutual_guilds)}")
 
     # time command
-    @commands.hybrid_command(description="Get the current time in any location.")
+    @commands.hybrid_command(name="time", description="Get the current time in any location.")
     @commands.describe(location="City or country name (e.g., Tokyo, Brazil, Chennai)")
     async def time(self, ctx, *, location: str = None):
         if not location:

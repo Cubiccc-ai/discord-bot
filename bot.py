@@ -1,4 +1,4 @@
-# bot.py (cleaned - commands moved to cogs)
+# bot.py (entrypoint - loads cogs, syncs commands, keepalive)
 import os
 import asyncio
 import discord
@@ -49,7 +49,7 @@ async def on_ready():
     except Exception as e:
         print("Error enumerating guilds:", e)
 
-    # sync commands (fast guild sync if GUILD_ID provided)
+    # sync commands (guild-fast if GUILD_ID provided, else global)
     try:
         if GUILD_ID:
             guild_obj = discord.Object(id=GUILD_ID)
@@ -65,6 +65,7 @@ async def on_ready():
 # -------------------- ERROR HANDLERS --------------------
 @bot.event
 async def on_command_error(ctx, error):
+    # fallback prefix error handler
     print("Prefix command error:", repr(error))
     try:
         await ctx.send(f"Error: {error}")
@@ -73,6 +74,7 @@ async def on_command_error(ctx, error):
 
 @bot.tree.error
 async def on_app_command_error(interaction, error):
+    # fallback app command error handler
     print("App command error:", repr(error))
     try:
         if not interaction.response.is_done():
@@ -101,14 +103,21 @@ Thread(target=run_flask).start()
 
 # -------------------- LOAD COGS & RUN --------------------
 async def main():
+    # print basic debug (optional)
+    print(">> Starting cog loader (root files):", os.listdir("."))
+
     # load all cogs from the cogs/ folder
-    for filename in os.listdir("cogs"):
-        if filename.endswith(".py") and filename != "__init__.py":
-            try:
-                await bot.load_extension(f"cogs.{filename[:-3]}")
-                print(f"✅ Loaded cog: cogs.{filename[:-3]}")
-            except Exception as e:
-                print(f"❌ Failed to load cogs.{filename[:-3]}:", e)
+    cogs_path = "cogs"
+    if os.path.exists(cogs_path):
+        for filename in os.listdir(cogs_path):
+            if filename.endswith(".py") and filename != "__init__.py":
+                try:
+                    await bot.load_extension(f"cogs.{filename[:-3]}")
+                    print(f"✅ Loaded cog: cogs.{filename[:-3]}")
+                except Exception as e:
+                    print(f"❌ Failed to load cogs.{filename[:-3]}:", repr(e))
+    else:
+        print("❌ cogs folder not found!")
 
     DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
     if not DISCORD_TOKEN:

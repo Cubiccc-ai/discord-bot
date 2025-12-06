@@ -397,13 +397,30 @@ def run():
 
 Thread(target=run).start()
 
+
 # -------------------- RUN BOT --------------------
+import os
+import asyncio
 
-import sys
-
-token = os.getenv("DISCORD_TOKEN")
-if not token:
+DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
+if not DISCORD_TOKEN:
     print("❌ DISCORD_TOKEN not found in environment variables.")
-    sys.exit()
+    raise SystemExit(1)
 
-bot.run(token)
+async def main():
+    # load all cogs from the cogs/ folder
+    for filename in os.listdir("cogs"):
+        if filename.endswith(".py") and filename != "__init__.py":
+            try:
+                await bot.load_extension(f"cogs.{filename[:-3]}")
+                print(f"✅ Loaded cog: cogs.{filename[:-3]}")
+            except Exception as e:
+                print(f"❌ Failed to load cogs.{filename[:-3]}:", e)
+
+    # start bot cleanly
+    async with bot:
+        await bot.start(DISCORD_TOKEN)
+
+if __name__ == "__main__":
+    asyncio.run(main())
+

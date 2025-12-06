@@ -1,9 +1,10 @@
-import discord
-import asyncio
-from discord.ext import commands
-from discord import app_commands
+# bot.py (cleaned - commands moved to cogs)
 import os
+import asyncio
+import discord
+from discord.ext import commands
 from dotenv import load_dotenv
+
 load_dotenv()
 
 intents = discord.Intents.default()
@@ -11,376 +12,76 @@ intents.message_content = True
 intents.members = True
 
 bot = commands.Bot(command_prefix="-", intents=intents, help_command=None)
-GUILD_ID = int(os.getenv("GUILD_ID"))  # Make sure GUILD_ID exists in your .env file
+
+# --- safe GUILD_ID parsing + diagnostics ---
+guild_id_raw = os.getenv("GUILD_ID")
+if guild_id_raw:
+    try:
+        GUILD_ID = int(guild_id_raw)
+    except ValueError:
+        print(f"❌ GUILD_ID must be numeric. Got: {guild_id_raw!r}")
+        GUILD_ID = None
+else:
+    print("⚠️ GUILD_ID not set. Guild-specific sync will be skipped.")
+    GUILD_ID = None
 
 @bot.event
 async def on_ready():
-    print(f"✅ Logged in as {bot.user}")
+    print(f"✅ Logged in as {bot.user} (id={getattr(bot.user,'id',None)})")
+
+    # list prefix commands (names)
     try:
-        guild_obj = discord.Object(id=GUILD_ID)
-        synced = await bot.tree.sync(guild=guild_obj)
-        print(f"✅ Synced {len(synced)} slash command(s) to guild {GUILD_ID}.")
+        print("Prefix commands registered:", [c.name for c in bot.commands])
     except Exception as e:
-        print(f"❌ Failed to sync guild slash commands: {e}")
+        print("Error listing prefix commands:", e)
 
-# -------------------- PING --------------------
-# slash ping (for /ping)
-@bot.tree.command(name="ping", description="Check if the bot is online (slash version)")
-async def slash_ping(interaction: discord.Interaction):
-    await interaction.response.send_message("🏓 Pong!")
-
-# prefix ping (for -ping)
-@bot.command(name="ping")
-async def ping(ctx):
-    await ctx.send("🏓 Pong!")
-
-# -------------------- KICK --------------------
-
-@bot.hybrid_command(description="Kick a member from the server.")
-@commands.has_permissions(kick_members=True)
-@app_commands.describe(member="The member to kick", reason="Reason for the kick")
-async def kick(ctx: commands.Context, member: discord.Member, reason: str = "No reason provided"):
+    # list app (slash) commands in the tree (local)
     try:
-        await member.send(f"👢 You were kicked from **{ctx.guild.name}**.\n**Reason:** {reason}")
-    except discord.Forbidden:
-        await ctx.send("⚠️ Couldn't DM the user (they probably have DMs off).", ephemeral=True)
-    except discord.HTTPException:
+        print("App commands in tree (local):", [c.name for c in bot.tree.walk_commands()])
+    except Exception as e:
+        print("Error listing app commands:", e)
+
+    # show guilds the bot is in
+    try:
+        print("Guilds the bot is in:")
+        for g in bot.guilds:
+            print(f" - {g.name} (id={g.id})")
+    except Exception as e:
+        print("Error enumerating guilds:", e)
+
+    # sync commands (fast guild sync if GUILD_ID provided)
+    try:
+        if GUILD_ID:
+            guild_obj = discord.Object(id=GUILD_ID)
+            synced = await bot.tree.sync(guild=guild_obj)
+            print(f"✅ Synced {len(synced)} slash command(s) to guild {GUILD_ID}.")
+        else:
+            synced = await bot.tree.sync()
+            print(f"✅ Synced {len(synced)} slash command(s) globally.")
+    except Exception as e:
+        print("❌ Sync error:", repr(e))
+
+
+# -------------------- ERROR HANDLERS --------------------
+@bot.event
+async def on_command_error(ctx, error):
+    print("Prefix command error:", repr(error))
+    try:
+        await ctx.send(f"Error: {error}")
+    except Exception:
         pass
 
+@bot.tree.error
+async def on_app_command_error(interaction, error):
+    print("App command error:", repr(error))
     try:
-        await member.kick(reason=reason)
-        await ctx.send(f"👢 Kicked {member.mention} | Reason: {reason}")
-    except discord.Forbidden:
-        await ctx.send("❌ I don't have permission to kick that user.")
-    except discord.HTTPException:
-        await ctx.send("⚠️ Kick failed due to a network error.")
-
-@kick.error
-async def kick_error(ctx, error):
-    if isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send("❌ Usage: `-kick @user [reason]`")
-    elif isinstance(error, commands.MissingPermissions):
-        await ctx.send("❌ You don't have permission to use this command.")
-    else:
-        await ctx.send(f"❌ An error occurred: {error}")
-
-# -------------------- BAN --------------------
-
-@bot.hybrid_command(description="Ban a member from the server.")
-@commands.has_permissions(ban_members=True)
-@app_commands.describe(user="The member to ban", reason="Reason for the ban")
-async def ban(ctx: commands.Context, user: str, *, reason: str = "No reason provided"):
-    # Try resolving as Member first
-    member = None
-    try:
-        member = await commands.MemberConverter().convert(ctx, user)
-    except commands.BadArgument:
-        # Try to fetch by user ID
-        try:
-            user_obj = await bot.fetch_user(int(user))
-            await ctx.guild.ban(user_obj, reason=reason)
-            await ctx.send(f"🔨 Banned `{user_obj}` | Reason: {reason}")
-            return
-        except Exception as e:
-            await ctx.send(f"❌ Couldn't find user with ID `{user}`. Error: {e}")
-            return
-
-    # Try to DM
-    try:
-        await member.send(f"🔨 You were banned from **{ctx.guild.name}**.\n**Reason:** {reason}")
-    except:
-        pass
-
-    # Attempt to ban
-    try:
-        await member.ban(reason=reason)
-        await ctx.send(f"🔨 Banned {member.mention} | Reason: {reason}")
-    except discord.Forbidden:
-        await ctx.send("❌ I can't ban that user.")
-    except discord.HTTPException:
-        await ctx.send("⚠️ Ban failed due to a network error.")
-
-@ban.error
-async def ban_error(ctx, error):
-    if isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send("❌ Usage: `-ban @user [reason]`")
-    elif isinstance(error, commands.MissingPermissions):
-        await ctx.send("❌ You don't have permission to use this command.")
-    else:
-        await ctx.send(f"❌ An error occurred: {error}")
-
-# -------------------- UNBAN --------------------
-
-@bot.hybrid_command(description="Unban a member by name#1234 or ID.")
-@commands.has_permissions(ban_members=True)
-@app_commands.describe(user_input="Name#1234 or user ID of the banned user")
-async def unban(ctx: commands.Context, *, user_input: str):
-    banned_users = [entry async for entry in ctx.guild.bans()]
-
-    user_id = None
-    member_name = None
-    discriminator = None
-
-    if user_input.isdigit():
-        user_id = int(user_input)
-    elif "#" in user_input:
-        member_name, discriminator = user_input.split("#")
-
-    for ban_entry in banned_users:
-        user = ban_entry.user
-        if (
-            (user_id and user.id == user_id) or
-            (member_name and discriminator and user.name == member_name and user.discriminator == discriminator)
-        ):
-            try:
-                await user.send(f"✅ You have been unbanned from **{ctx.guild.name}**.")
-            except:
-                await ctx.send(f"⚠️ Couldn't DM {user}.", ephemeral=True)
-            await ctx.guild.unban(user)
-            await ctx.send(f"✅ Unbanned {user.mention}")
-            return
-
-    await ctx.send("⚠️ User not found in the ban list.")
-
-@unban.error
-async def unban_error(ctx, error):
-    if isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send("❌ Usage: `-unban name#1234 or ID`")
-    elif isinstance(error, commands.MissingPermissions):
-        await ctx.send("❌ You don't have permission to use this command.")
-    else:
-        await ctx.send(f"❌ An error occurred: {error}")
-
-# -------------------- MUTE --------------------
-
-@bot.hybrid_command(description="Mute a user, optionally for a duration (seconds).")
-@commands.has_permissions(manage_roles=True)
-@app_commands.describe(member="The member to mute", duration="Duration in seconds", reason="Reason for muting")
-async def mute(ctx: commands.Context, member: discord.Member, duration: int = None, *, reason: str = "No reason provided"):
-    muted_role = discord.utils.get(ctx.guild.roles, name="Muted")
-
-    if not muted_role:
-        await ctx.send("❌ 'Muted' role not found. Please create one with no Send Messages/Speak permissions.")
-        return
-
-    await member.add_roles(muted_role, reason=reason)
-
-    try:
-        await member.send(f"🔇 You have been muted in **{ctx.guild.name}**.\nReason: `{reason}`")
-    except:
-        await ctx.send("⚠️ Couldn't DM the muted user.", ephemeral=True)
-
-    await ctx.send(f"🔇 Muted {member.mention} | Reason: `{reason}`")
-
-    if duration:
-        await asyncio.sleep(duration)
-        await member.remove_roles(muted_role)
-        try:
-            await member.send(f"🔊 You have been unmuted in **{ctx.guild.name}**.")
-        except:
-            pass
-        await ctx.send(f"🔊 Automatically unmuted {member.mention} after `{duration}` seconds.")
-
-@mute.error
-async def mute_error(ctx, error):
-    if isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send("❌ Usage: `-mute @user [duration] [reason]`")
-    elif isinstance(error, commands.MissingPermissions):
-        await ctx.send("❌ You don't have permission to use this command.")
-    else:
-        await ctx.send(f"❌ An error occurred: {error}")
-
-# -------------------- UNMUTE --------------------
-
-@bot.hybrid_command(description="Unmute a muted member.")
-@commands.has_permissions(manage_roles=True)
-@app_commands.describe(member="The member to unmute")
-async def unmute(ctx: commands.Context, member: discord.Member):
-    muted_role = discord.utils.get(ctx.guild.roles, name="Muted")
-
-    if not muted_role:
-        await ctx.send("❌ 'Muted' role not found.")
-        return
-
-    if muted_role not in member.roles:
-        await ctx.send(f"ℹ️ {member.mention} is not muted.")
-        return
-
-    await member.remove_roles(muted_role)
-
-    try:
-        await member.send(f"🔊 You have been unmuted in **{ctx.guild.name}**.")
-    except:
-        await ctx.send("⚠️ Couldn't DM the user.", ephemeral=True)
-
-    await ctx.send(f"🔊 {member.mention} has been unmuted.")
-
-@unmute.error
-async def unmute_error(ctx, error):
-    if isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send("❌ Usage: `-unmute @user`")
-    elif isinstance(error, commands.MissingPermissions):
-        await ctx.send("❌ You don't have permission to use this command.")
-    else:
-        await ctx.send(f"❌ An error occurred: {error}")
-
-# -------------------- WARN --------------------
-
-@bot.hybrid_command(description="Warn a user (with DM).")
-@commands.has_permissions(manage_messages=True)
-@app_commands.describe(member="The user to warn", reason="The reason for the warning")
-async def warn(ctx: commands.Context, member: discord.Member, *, reason: str = "No reason provided"):
-    try:
-        await member.send(f"⚠️ You have been warned in **{ctx.guild.name}**.\nReason: `{reason}`")
-    except (discord.Forbidden, discord.HTTPException):
-        await ctx.send("⚠️ Couldn't DM the warned user.", ephemeral=True)
-
-    await ctx.send(f"⚠️ Warned {member.mention} | Reason: `{reason}`")
-
-@warn.error
-async def warn_error(ctx, error):
-    if isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send("❌ Usage: `-warn @user [reason]`")
-    elif isinstance(error, commands.MissingPermissions):
-        await ctx.send("❌ You don't have permission to warn users.")
-    else:
-        await ctx.send(f"⚠️ Error: {str(error)}")
-        
-# -------------------- MUTUAL SERVERS --------------------
-
-@bot.hybrid_command(description="Check how many mutual servers you share with a user ID.")
-@app_commands.describe(user_id="The Discord ID of the user")
-async def mutual(ctx: commands.Context, user_id: str):
-    # Validate ID
-    if not user_id.isdigit():
-        await ctx.send("❌ Please enter a valid user ID.")
-        return
-
-    uid = int(user_id)
-    mutual_guilds = []
-
-    # Loop through guilds the bot is in
-    for guild in bot.guilds:
-        # Try cached member first
-        member = guild.get_member(uid)
-        if member:
-            mutual_guilds.append(guild.name)
-            continue
-
-        # Fallback: fetch member (if bot has perms)
-        try:
-            await guild.fetch_member(uid)
-            mutual_guilds.append(guild.name)
-        except discord.NotFound:
-            pass
-        except discord.Forbidden:
-            pass
-        except discord.HTTPException:
-            pass
-
-    count = len(mutual_guilds)
-
-    if count == 0:
-        await ctx.send(f"ℹ️ No mutual servers found with `{user_id}`.")
-        return
-
-    # Format output
-    if count > 10:
-        preview = ', '.join(mutual_guilds[:10])
-        more = count - 10
-        await ctx.send(
-            f"🤝 **Mutual Servers:** {count}\n"
-            f"🔹 **First 10:** {preview}... (+{more} more)"
-        )
-    else:
-        await ctx.send(
-            f"🤝 **Mutual Servers ({count}):** {', '.join(mutual_guilds)}"
-        )
-   
-# --------------------- UTILITY ---------------------
-
-# -------------------- TIME --------------------
-
-import pytz
-from datetime import datetime
-from geopy.geocoders import Nominatim
-from timezonefinder import TimezoneFinder
-
-@bot.hybrid_command(description="Get the current time in any location.")
-@app_commands.describe(location="City or country name (e.g., Tokyo, Brazil, Chennai)")
-async def time(ctx: commands.Context, *, location: str = None):
-    if not location:
-        await ctx.send("❌ Usage: `-time <city>` — Example: `-time Tokyo`")
-        return
-
-    geolocator = Nominatim(user_agent="time-bot")
-    tf = TimezoneFinder()
-
-    try:
-        loc = geolocator.geocode(location)
-        if not loc:
-            await ctx.send("⚠️ Location not found.")
-            return
-
-        timezone_str = tf.timezone_at(lat=loc.latitude, lng=loc.longitude)
-        if not timezone_str:
-            await ctx.send("⚠️ Could not determine timezone for this location.")
-            return
-
-        tz = pytz.timezone(timezone_str)
-        now = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
-        await ctx.send(f"🕒 The current time in **{location.title()}** ({timezone_str}) is: `{now}`")
-
+        if not interaction.response.is_done():
+            await interaction.response.send_message("Command error occurred.", ephemeral=True)
+        else:
+            await interaction.followup.send("Command error occurred.", ephemeral=True)
     except Exception as e:
-        await ctx.send(f"⚠️ An error occurred: `{str(e)}`")
+        print("Failed to notify user about app command error:", e)
 
-# -------------------- PURGE --------------------
-
-@bot.hybrid_command(description="Delete bulk messages from a channel.")
-@commands.has_permissions(manage_messages=True)
-@app_commands.describe(amount="Number of messages to delete (1–100)")
-async def purge(ctx: commands.Context, amount: int):
-    if amount < 1 or amount > 100:
-        await ctx.send("⚠️ Please choose a number between 1 and 100.")
-        return
-
-    await ctx.channel.purge(limit=amount + 1)  # +1 to include the command message
-    confirm = await ctx.send(f"🧹 Deleted `{amount}` messages.")
-    await confirm.delete(delay=3)
-
-@purge.error
-async def purge_error(ctx, error):
-    if isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send("❌ Usage: `-purge [1–100]`")
-    elif isinstance(error, commands.MissingPermissions):
-        await ctx.send("❌ You don't have permission to manage messages.")
-    else:
-        await ctx.send(f"⚠️ Error: {str(error)}")
-
-# -------------------- HELP --------------------
-
-@bot.hybrid_command(description="Display a list of moderation commands.")
-async def help(ctx: commands.Context):
-    prefix = ctx.prefix if hasattr(ctx, 'prefix') else '-'  # fallback for slash usage
-
-    embed = discord.Embed(
-        title="🛠️ Moderation Commands",
-        description="Here’s a list of commands you can use:",
-        color=discord.Color.orange()
-    )
-
-    embed.add_field(name=f"{prefix}ping", value="Check if the bot is online", inline=False)
-    embed.add_field(name=f"{prefix}kick @user [reason]", value="Kick a user from the server", inline=False)
-    embed.add_field(name=f"{prefix}ban @user [reason]", value="Ban a user from the server", inline=False)
-    embed.add_field(name=f"{prefix}unban [name#1234 or ID]", value="Unban a user by tag or ID", inline=False)
-    embed.add_field(name=f"{prefix}mute @user [seconds] [reason]", value="Mute a user", inline=False)
-    embed.add_field(name=f"{prefix}unmute @user", value="Unmute a muted user", inline=False)
-    embed.add_field(name=f"{prefix}warn @user [reason]", value="Warn a user", inline=False)
-    embed.add_field(name=f"{prefix}purge [1–100]", value="Delete messages in bulk", inline=False)
-
-    embed.set_footer(text="Bot developed by cubicc__ • Use commands responsibly.")
-
-    await ctx.send(embed=embed)
 
 # -------------------- KEEP RENDER ALIVE --------------------
 from threading import Thread
@@ -392,21 +93,13 @@ app = Flask('')
 def home():
     return "Bot is alive!"
 
-def run():
+def run_flask():
     app.run(host='0.0.0.0', port=8080)
 
-Thread(target=run).start()
+Thread(target=run_flask).start()
 
 
-# -------------------- RUN BOT --------------------
-import os
-import asyncio
-
-DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-if not DISCORD_TOKEN:
-    print("❌ DISCORD_TOKEN not found in environment variables.")
-    raise SystemExit(1)
-
+# -------------------- LOAD COGS & RUN --------------------
 async def main():
     # load all cogs from the cogs/ folder
     for filename in os.listdir("cogs"):
@@ -417,10 +110,14 @@ async def main():
             except Exception as e:
                 print(f"❌ Failed to load cogs.{filename[:-3]}:", e)
 
-    # start bot cleanly
+    DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
+    if not DISCORD_TOKEN:
+        print("❌ DISCORD_TOKEN not found in environment variables.")
+        raise SystemExit(1)
+
     async with bot:
         await bot.start(DISCORD_TOKEN)
 
+
 if __name__ == "__main__":
     asyncio.run(main())
-
